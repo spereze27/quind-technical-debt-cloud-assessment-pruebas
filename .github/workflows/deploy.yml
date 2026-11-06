@@ -1,0 +1,109 @@
+# Despliegue a Cloud Run (microservicio) con Workload Identity Federation: sin claves JSON en GitHub.
+# Configuración: docs/DEPLOY_CLOUD_RUN.md  (secretos y variables listados allí)
+name: deploy-cloud-run
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["docs/**", "*.md", "terraform/**"]
+  pull_request:
+    branches: [main]          # en PR solo corre el job de pruebas
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: "Desplegar tras las pruebas"
+        type: boolean
+        default: true
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  REGION: ${{ vars.GCP_REGION }}
+  SERVICE: ${{ vars.SERVICE_NAME || 'tech-debt-analyzer' }}
+  AR_REPO: ${{ vars.AR_REPOSITORY || 'tech-debt' }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - run: pip install -r requirements-api.txt pytest httpx
+      - run: python -m pytest -q tests
+        env:
+          DISCOVERY_MODE: mock
+
+  deploy:
+    needs: test
+    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.deploy)
+    runs-on: ubuntu-latest
+    environment: production        # opcional: permite exigir aprobación manual en GitHub
+    permissions:
+      contents: read
+      id-token: write              # necesario para Workload Identity Federation
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configurar Docker para Artifact Registry
+        run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+      - name: Construir y publicar la imagen
+        run: |
+          IMAGE="${REGION}-docker.pkg.dev/${PROJECT_ID}/${AR_REPO}/${SERVICE}:${GITHUB_SHA}"
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+      - name: Desplegar en Cloud Run
+        run: |
+          # Un solo contenedor con CPU siempre asignada: los trabajos corren en segundo plano dentro del proceso.
+          gcloud run deploy "$SERVICE" \
+            --project "$PROJECT_ID" --region "$REGION" \
+            --image "$IMAGE" \
+            --service-account "${{ vars.RUNTIME_SA_EMAIL }}" \
+            --allow-unauthenticated \
+            --port 8080 \
+            --cpu 2 --memory 2Gi \
+            --no-cpu-throttling \
+            --min-instances 1 --max-instances 1 \
+            --concurrency 40 \
+            --timeout 3600 \
+            --set-env-vars "^@^REQUIRE_AUTH=1@ADC_ENABLED=1@JOB_STORE=memory@REPORTS_DIR=/tmp/reports@MAX_CONCURRENT_AUDITS=2@MAX_QUEUED_AUDITS=20@CORS_ORIGINS=${{ vars.CORS_ORIGINS }}" \
+            --set-secrets "API_KEYS=${{ vars.API_KEYS_SECRET_NAME || 'tech-debt-api-keys' }}:latest" \
+            --quiet
+
+      - name: Obtener URL
+        id: url
+        run: echo "url=$(gcloud run services describe "$SERVICE" --project "$PROJECT_ID" --region "$REGION" --format='value(status.url)')" >> "$GITHUB_OUTPUT"
+
+      - name: Prueba de humo (health + auth)
+        env:
+          BASE_URL: ${{ steps.url.outputs.url }}
+          API_KEY: ${{ secrets.SMOKE_API_KEY }}
+        run: |
+          set -e
+          curl -fsS "$BASE_URL/health" | tee /dev/stderr | grep -q '"status":"ok"'
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE_URL/api/v1/infrastructure/audits" -H 'Content-Type: application/json' -d '{}')
+          [ "$code" = "401" ] || { echo "Se esperaba 401 sin API key, llegó $code"; exit 1; }
+          if [ -n "$API_KEY" ]; then
+            code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BASE_URL/api/v1/infrastructure/audits" -H "X-API-Key: $API_KEY" -H 'Content-Type: application/json' -d '{}')
+            [ "$code" = "401" ] || [ "$code" = "422" ] || { echo "Con API key válida se esperaba 401/422 (falta LLM key/campos), llegó $code"; exit 1; }
+          fi
+
+      - name: Resumen
+        run: echo "Desplegado en ${{ steps.url.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"

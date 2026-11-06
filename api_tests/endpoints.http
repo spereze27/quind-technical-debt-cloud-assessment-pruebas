@@ -1,0 +1,93 @@
+### Cliente REST de VS Code (extensión "REST Client") o IntelliJ/PyCharm. Edite las variables y pulse "Send Request".
+@base = http://localhost:8000
+@apiKey = cambie-esta-clave
+@llmKey = sk-ant-...
+@project = mi-proyecto
+
+### Salud (sin autenticación)
+GET {{base}}/health
+
+### ================= INFRAESTRUCTURA =================
+# @name infra
+POST {{base}}/api/v1/infrastructure/audits
+X-API-Key: {{apiKey}}
+X-LLM-API-Key: {{llmKey}}
+Content-Type: application/json
+
+{ "provider": "GCP", "scope": "project", "target_id": "{{project}}", "llm_provider": "anthropic" }
+
+###
+@infraId = {{infra.response.body.job_id}}
+GET {{base}}/api/v1/infrastructure/audits/{{infraId}}?include_raw=false
+X-API-Key: {{apiKey}}
+
+### ================= GOBIERNO DE DATOS =================
+# @name data
+POST {{base}}/api/v1/data-governance/audits
+X-API-Key: {{apiKey}}
+X-LLM-API-Key: {{llmKey}}
+Content-Type: application/json
+
+{ "provider": "GCP", "scope": "project", "target_id": "{{project}}", "llm_provider": "anthropic",
+  "history_days": 30, "sample_lake": true, "read_dags": true, "profile_datasets": [] }
+
+###
+@dataId = {{data.response.body.job_id}}
+GET {{base}}/api/v1/data-governance/audits/{{dataId}}?include_raw=false
+X-API-Key: {{apiKey}}
+
+### Con diccionario de datos como archivo (multipart)
+POST {{base}}/api/v1/data-governance/audits/multipart
+X-API-Key: {{apiKey}}
+X-LLM-API-Key: {{llmKey}}
+Content-Type: multipart/form-data; boundary=B
+
+--B
+Content-Disposition: form-data; name="request"
+Content-Type: application/json
+
+{ "provider": "GCP", "scope": "project", "target_id": "{{project}}", "llm_provider": "anthropic", "profile_datasets": ["credito"] }
+--B
+Content-Disposition: form-data; name="dictionary"; filename="diccionario.xlsx"
+Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+
+< ./diccionario.xlsx
+--B--
+
+### ================= ARQUITECTURA =================
+# @name arch
+POST {{base}}/api/v1/architecture/audits
+X-API-Key: {{apiKey}}
+X-LLM-API-Key: {{llmKey}}
+Content-Type: application/json
+
+{ "provider": "GCP", "scope": "project", "target_id": "{{project}}", "llm_provider": "anthropic" }
+
+###
+@archId = {{arch.response.body.job_id}}
+GET {{base}}/api/v1/architecture/audits/{{archId}}
+X-API-Key: {{apiKey}}
+
+### Cancelar un trabajo
+DELETE {{base}}/api/v1/architecture/audits/{{archId}}
+X-API-Key: {{apiKey}}
+
+### Descargar el Excel del análisis de datos (reemplace el id)
+GET {{base}}/api/v1/reports/REEMPLACE_report_id.xlsx
+X-API-Key: {{apiKey}}
+
+### ================= NEGATIVOS (deben fallar) =================
+# 401: sin API key
+POST {{base}}/api/v1/infrastructure/audits
+X-LLM-API-Key: {{llmKey}}
+Content-Type: application/json
+
+{ "provider": "GCP", "scope": "project", "target_id": "{{project}}" }
+
+### 422: campo que no pertenece al dominio
+POST {{base}}/api/v1/architecture/audits
+X-API-Key: {{apiKey}}
+X-LLM-API-Key: {{llmKey}}
+Content-Type: application/json
+
+{ "provider": "GCP", "scope": "project", "target_id": "{{project}}", "history_days": 5 }

@@ -1,0 +1,13 @@
+.git
+.github
+__pycache__
+*.pyc
+.env
+*.json
+!requirements*.txt
+tests
+frontend
+docs
+terraform
+*.sqlite3
+*.xlsx

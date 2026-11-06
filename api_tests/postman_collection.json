@@ -1,0 +1,1008 @@
+{
+ "info": {
+  "name": "Cloud Tech Debt Analyzer API",
+  "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+ },
+ "variable": [
+  {
+   "key": "base_url",
+   "value": "http://localhost:8000"
+  },
+  {
+   "key": "api_key",
+   "value": ""
+  },
+  {
+   "key": "llm_key",
+   "value": ""
+  },
+  {
+   "key": "llm_provider",
+   "value": "anthropic"
+  },
+  {
+   "key": "gcp_project",
+   "value": "mi-proyecto"
+  },
+  {
+   "key": "infrastructure_job_id",
+   "value": ""
+  },
+  {
+   "key": "data_governance_job_id",
+   "value": ""
+  },
+  {
+   "key": "architecture_job_id",
+   "value": ""
+  },
+  {
+   "key": "report_id",
+   "value": ""
+  }
+ ],
+ "item": [
+  {
+   "name": "00 Salud y documentación",
+   "item": [
+    {
+     "name": "Health (sin auth)",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{base_url}}/health",
+       "host": [
+        "{{base_url}}"
+       ],
+       "path": [
+        "health"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200',()=>pm.response.to.have.status(200));",
+         "pm.test('3 dominios',()=>pm.expect(Object.keys(pm.response.json().domains)).to.have.members(['infrastructure','data-governance','architecture']));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "OpenAPI",
+     "request": {
+      "method": "GET",
+      "header": [],
+      "url": {
+       "raw": "{{base_url}}/openapi.json",
+       "host": [
+        "{{base_url}}"
+       ],
+       "path": [
+        "openapi.json"
+       ]
+      },
+      "description": ""
+     }
+    }
+   ]
+  },
+  {
+   "name": "infrastructure",
+   "item": [
+    {
+     "name": "Crear (infrastructure)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-API-Key",
+        "value": "{{api_key}}"
+       },
+       {
+        "key": "X-LLM-API-Key",
+        "value": "{{llm_key}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{base_url}}/api/v1/infrastructure/audits",
+       "host": [
+        "{{base_url}}"
+       ],
+       "path": [
+        "api",
+        "v1",
+        "infrastructure",
+        "audits"
+       ]
+      },
+      "description": "Seguridad, gobierno y costos",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"provider\": \"GCP\",\n  \"scope\": \"project\",\n  \"target_id\": \"{{gcp_project}}\",\n  \"llm_provider\": \"{{llm_provider}}\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('202',()=>pm.response.to.have.status(202));",
+         "pm.collectionVariables.set('infrastructure_job_id', pm.response.json().job_id);"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Estado (infrastructure)",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-API-Key",
+        "value": "{{api_key}}"
+       },
+       {
+        "key": "X-LLM-API-Key",
+        "value": "{{llm_key}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{base_url}}/api/v1/infrastructure/audits/{{infrastructure_job_id}}?include_raw=false",
+       "host": [
+        "{{base_url}}"
+       ],
+       "path": [
+        "api",
+        "v1",
+        "infrastructure",
+        "audits",
+        "{{infrastructure_job_id}}?include_raw=false"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200',()=>pm.response.to.have.status(200));",
+         "console.log(pm.response.json().status);"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Cancelar / borrar (infrastructure)",
+     "request": {
+      "method": "DELETE",
+      "header": [
+       {
+        "key": "X-API-Key",
+        "value": "{{api_key}}"
+       },
+       {
+        "key": "X-LLM-API-Key",
+        "value": "{{llm_key}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{base_url}}/api/v1/infrastructure/audits/{{infrastructure_job_id}}",
+       "host": [
+        "{{base_url}}"
+       ],
+       "path": [
+        "api",
+        "v1",
+        "infrastructure",
+        "audits",
+        "{{infrastructure_job_id}}"
+       ]
+      },
+      "description": ""
+     }
+    },
+    {
+     "name": "Síncrono (infrastructure) — conexión larga",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-API-Key",
+        "value": "{{api_key}}"
+       },
+       {
+        "key": "X-LLM-API-Key",
+        "value": "{{llm_key}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{base_url}}/api/v1/infrastructure/audit",
+       "host": [
+        "{{base_url}}"
+       ],
+       "path": [
+        "api",
+        "v1",
+        "infrastructure",
+        "audit"
+       ]
+      },
+      "description": "",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"provider\": \"GCP\",\n  \"scope\": \"project\",\n  \"target_id\": \"{{gcp_project}}\",\n  \"llm_provider\": \"{{llm_provider}}\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    },
+    {
+     "name": "Stream NDJSON (infrastructure)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-API-Key",
+        "value": "{{api_key}}"
+       },
+       {
+        "key": "X-LLM-API-Key",
+        "value": "{{llm_key}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{base_url}}/api/v1/infrastructure/audit/stream",
+       "host": [
+        "{{base_url}}"
+       ],
+       "path": [
+        "api",
+        "v1",
+        "infrastructure",
+        "audit",
+        "stream"
+       ]
+      },
+      "description": "",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"provider\": \"GCP\",\n  \"scope\": \"project\",\n  \"target_id\": \"{{gcp_project}}\",\n  \"llm_provider\": \"{{llm_provider}}\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "data-governance",
+   "item": [
+    {
+     "name": "Crear (data-governance)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-API-Key",
+        "value": "{{api_key}}"
+       },
+       {
+        "key": "X-LLM-API-Key",
+        "value": "{{llm_key}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{base_url}}/api/v1/data-governance/audits",
+       "host": [
+        "{{base_url}}"
+       ],
+       "path": [
+        "api",
+        "v1",
+        "data-governance",
+        "audits"
+       ]
+      },
+      "description": "BigQuery/lake, flujos, capacidad, diccionario",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"provider\": \"GCP\",\n  \"scope\": \"project\",\n  \"target_id\": \"{{gcp_project}}\",\n  \"llm_provider\": \"{{llm_provider}}\",\n  \"history_days\": 30,\n  \"sample_lake\": true,\n  \"read_dags\": true,\n  \"max_projects\": 10,\n  \"profile_datasets\": []\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('202',()=>pm.response.to.have.status(202));",
+         "pm.collectionVariables.set('data_governance_job_id', pm.response.json().job_id);"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Estado (data-governance)",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-API-Key",
+        "value": "{{api_key}}"
+       },
+       {
+        "key": "X-LLM-API-Key",
+        "value": "{{llm_key}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{base_url}}/api/v1/data-governance/audits/{{data_governance_job_id}}?include_raw=false",
+       "host": [
+        "{{base_url}}"
+       ],
+       "path": [
+        "api",
+        "v1",
+        "data-governance",
+        "audits",
+        "{{data_governance_job_id}}?include_raw=false"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200',()=>pm.response.to.have.status(200));",
+         "console.log(pm.response.json().status);"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Cancelar / borrar (data-governance)",
+     "request": {
+      "method": "DELETE",
+      "header": [
+       {
+        "key": "X-API-Key",
+        "value": "{{api_key}}"
+       },
+       {
+        "key": "X-LLM-API-Key",
+        "value": "{{llm_key}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{base_url}}/api/v1/data-governance/audits/{{data_governance_job_id}}",
+       "host": [
+        "{{base_url}}"
+       ],
+       "path": [
+        "api",
+        "v1",
+        "data-governance",
+        "audits",
+        "{{data_governance_job_id}}"
+       ]
+      },
+      "description": ""
+     }
+    },
+    {
+     "name": "Síncrono (data-governance) — conexión larga",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-API-Key",
+        "value": "{{api_key}}"
+       },
+       {
+        "key": "X-LLM-API-Key",
+        "value": "{{llm_key}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{base_url}}/api/v1/data-governance/audit",
+       "host": [
+        "{{base_url}}"
+       ],
+       "path": [
+        "api",
+        "v1",
+        "data-governance",
+        "audit"
+       ]
+      },
+      "description": "",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"provider\": \"GCP\",\n  \"scope\": \"project\",\n  \"target_id\": \"{{gcp_project}}\",\n  \"llm_provider\": \"{{llm_provider}}\",\n  \"history_days\": 30,\n  \"sample_lake\": true,\n  \"read_dags\": true,\n  \"max_projects\": 10,\n  \"profile_datasets\": []\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    },
+    {
+     "name": "Stream NDJSON (data-governance)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-API-Key",
+        "value": "{{api_key}}"
+       },
+       {
+        "key": "X-LLM-API-Key",
+        "value": "{{llm_key}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{base_url}}/api/v1/data-governance/audit/stream",
+       "host": [
+        "{{base_url}}"
+       ],
+       "path": [
+        "api",
+        "v1",
+        "data-governance",
+        "audit",
+        "stream"
+       ]
+      },
+      "description": "",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"provider\": \"GCP\",\n  \"scope\": \"project\",\n  \"target_id\": \"{{gcp_project}}\",\n  \"llm_provider\": \"{{llm_provider}}\",\n  \"history_days\": 30,\n  \"sample_lake\": true,\n  \"read_dags\": true,\n  \"max_projects\": 10,\n  \"profile_datasets\": []\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "architecture",
+   "item": [
+    {
+     "name": "Crear (architecture)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-API-Key",
+        "value": "{{api_key}}"
+       },
+       {
+        "key": "X-LLM-API-Key",
+        "value": "{{llm_key}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{base_url}}/api/v1/architecture/audits",
+       "host": [
+        "{{base_url}}"
+       ],
+       "path": [
+        "api",
+        "v1",
+        "architecture",
+        "audits"
+       ]
+      },
+      "description": "Componentes, flujos, identidades, exposición",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"provider\": \"GCP\",\n  \"scope\": \"project\",\n  \"target_id\": \"{{gcp_project}}\",\n  \"llm_provider\": \"{{llm_provider}}\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('202',()=>pm.response.to.have.status(202));",
+         "pm.collectionVariables.set('architecture_job_id', pm.response.json().job_id);"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Estado (architecture)",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-API-Key",
+        "value": "{{api_key}}"
+       },
+       {
+        "key": "X-LLM-API-Key",
+        "value": "{{llm_key}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{base_url}}/api/v1/architecture/audits/{{architecture_job_id}}?include_raw=false",
+       "host": [
+        "{{base_url}}"
+       ],
+       "path": [
+        "api",
+        "v1",
+        "architecture",
+        "audits",
+        "{{architecture_job_id}}?include_raw=false"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('200',()=>pm.response.to.have.status(200));",
+         "console.log(pm.response.json().status);"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Cancelar / borrar (architecture)",
+     "request": {
+      "method": "DELETE",
+      "header": [
+       {
+        "key": "X-API-Key",
+        "value": "{{api_key}}"
+       },
+       {
+        "key": "X-LLM-API-Key",
+        "value": "{{llm_key}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{base_url}}/api/v1/architecture/audits/{{architecture_job_id}}",
+       "host": [
+        "{{base_url}}"
+       ],
+       "path": [
+        "api",
+        "v1",
+        "architecture",
+        "audits",
+        "{{architecture_job_id}}"
+       ]
+      },
+      "description": ""
+     }
+    },
+    {
+     "name": "Síncrono (architecture) — conexión larga",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-API-Key",
+        "value": "{{api_key}}"
+       },
+       {
+        "key": "X-LLM-API-Key",
+        "value": "{{llm_key}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{base_url}}/api/v1/architecture/audit",
+       "host": [
+        "{{base_url}}"
+       ],
+       "path": [
+        "api",
+        "v1",
+        "architecture",
+        "audit"
+       ]
+      },
+      "description": "",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"provider\": \"GCP\",\n  \"scope\": \"project\",\n  \"target_id\": \"{{gcp_project}}\",\n  \"llm_provider\": \"{{llm_provider}}\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    },
+    {
+     "name": "Stream NDJSON (architecture)",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-API-Key",
+        "value": "{{api_key}}"
+       },
+       {
+        "key": "X-LLM-API-Key",
+        "value": "{{llm_key}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{base_url}}/api/v1/architecture/audit/stream",
+       "host": [
+        "{{base_url}}"
+       ],
+       "path": [
+        "api",
+        "v1",
+        "architecture",
+        "audit",
+        "stream"
+       ]
+      },
+      "description": "",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"provider\": \"GCP\",\n  \"scope\": \"project\",\n  \"target_id\": \"{{gcp_project}}\",\n  \"llm_provider\": \"{{llm_provider}}\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "Negativos",
+   "item": [
+    {
+     "name": "Sin X-API-Key → 401",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-LLM-API-Key",
+        "value": "{{llm_key}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{base_url}}/api/v1/infrastructure/audits",
+       "host": [
+        "{{base_url}}"
+       ],
+       "path": [
+        "api",
+        "v1",
+        "infrastructure",
+        "audits"
+       ]
+      },
+      "description": "",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"provider\": \"GCP\",\n  \"scope\": \"project\",\n  \"target_id\": \"{{gcp_project}}\",\n  \"llm_provider\": \"{{llm_provider}}\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('401',()=>pm.response.to.have.status(401));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Sin X-LLM-API-Key → 401",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-API-Key",
+        "value": "{{api_key}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{base_url}}/api/v1/infrastructure/audits",
+       "host": [
+        "{{base_url}}"
+       ],
+       "path": [
+        "api",
+        "v1",
+        "infrastructure",
+        "audits"
+       ]
+      },
+      "description": "",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"provider\": \"GCP\",\n  \"scope\": \"project\",\n  \"target_id\": \"{{gcp_project}}\",\n  \"llm_provider\": \"{{llm_provider}}\"\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('401',()=>pm.response.to.have.status(401));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Campo de otro dominio → 422",
+     "request": {
+      "method": "POST",
+      "header": [
+       {
+        "key": "X-API-Key",
+        "value": "{{api_key}}"
+       },
+       {
+        "key": "X-LLM-API-Key",
+        "value": "{{llm_key}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{base_url}}/api/v1/architecture/audits",
+       "host": [
+        "{{base_url}}"
+       ],
+       "path": [
+        "api",
+        "v1",
+        "architecture",
+        "audits"
+       ]
+      },
+      "description": "",
+      "body": {
+       "mode": "raw",
+       "raw": "{\n  \"provider\": \"GCP\",\n  \"scope\": \"project\",\n  \"target_id\": \"{{gcp_project}}\",\n  \"llm_provider\": \"{{llm_provider}}\",\n  \"history_days\": 5\n}",
+       "options": {
+        "raw": {
+         "language": "json"
+        }
+       }
+      }
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('422',()=>pm.response.to.have.status(422));"
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "name": "Job de otro dominio → 404",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-API-Key",
+        "value": "{{api_key}}"
+       },
+       {
+        "key": "X-LLM-API-Key",
+        "value": "{{llm_key}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{base_url}}/api/v1/architecture/audits/{{infrastructure_job_id}}",
+       "host": [
+        "{{base_url}}"
+       ],
+       "path": [
+        "api",
+        "v1",
+        "architecture",
+        "audits",
+        "{{infrastructure_job_id}}"
+       ]
+      },
+      "description": ""
+     },
+     "event": [
+      {
+       "listen": "test",
+       "script": {
+        "type": "text/javascript",
+        "exec": [
+         "pm.test('404',()=>pm.response.to.have.status(404));"
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Informes",
+   "item": [
+    {
+     "name": "Descargar Excel",
+     "request": {
+      "method": "GET",
+      "header": [
+       {
+        "key": "X-API-Key",
+        "value": "{{api_key}}"
+       },
+       {
+        "key": "X-LLM-API-Key",
+        "value": "{{llm_key}}"
+       },
+       {
+        "key": "Content-Type",
+        "value": "application/json"
+       }
+      ],
+      "url": {
+       "raw": "{{base_url}}/api/v1/reports/{{report_id}}.xlsx",
+       "host": [
+        "{{base_url}}"
+       ],
+       "path": [
+        "api",
+        "v1",
+        "reports",
+        "{{report_id}}.xlsx"
+       ]
+      },
+      "description": "report_id está en result.excel_report.report_id del análisis data-governance"
+     }
+    }
+   ]
+  }
+ ]
+}
