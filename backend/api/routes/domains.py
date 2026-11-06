@@ -11,7 +11,7 @@ import json
 from typing import Any, AsyncIterator
 
 from fastapi import APIRouter, Depends, File, Form, Header, Query, Request, Response, UploadFile
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import ValidationError
 
 from backend.agent_graph.graph import DOMAIN_NODES
@@ -34,6 +34,18 @@ DOMAINS: dict[str, dict[str, Any]] = {
 }
 
 
+MAX_WAIT_S = 3300          # por debajo del tiempo máximo de una solicitud en Cloud Run (3600 s)
+FINISHED = ("completed", "error", "cancelled")
+
+
+def _status_payload(job: Any, domain: str, include_raw: bool) -> dict[str, Any]:
+    result = job.result if job.status == "completed" else None
+    if result is not None and not include_raw:
+        result = {**result, "raw_infra_data": None}
+    return {"job_id": job.id, "domain": domain, "status": job.status, "elapsed_s": job.elapsed_s,
+            "events": job.events, "error": job.error, "result": result}
+
+
 async def _create(request: Request, owner: str, req: BaseRequest, llm_key: str | None, domain: str) -> JobCreated:
     request.app.state.limiter.check(owner)
     state, config = await asyncio.to_thread(prepare, req, llm_key, request.app.state.settings, domain)
@@ -48,24 +60,33 @@ def make_router(domain: str) -> APIRouter:
     nodes = DOMAIN_NODES[domain]
 
     @router.post("/audits", status_code=202, response_model=JobCreated, name=f"create_{domain}",
+                 responses={200: {"model": DomainJobStatus, "description": "Con `wait=true`: el análisis terminó."}},
                  summary=f"Crear análisis de {meta['tag'].lower()} en segundo plano",
                  description=f"Analiza: {meta['what']}. Responde 202 con `job_id`; consulte el avance con GET.")
     async def create(req: Req, request: Request, response: Response, owner: str = Depends(authenticate),  # type: ignore[valid-type]
-                     x_llm_api_key: str | None = LLMKey) -> JobCreated:
+                     x_llm_api_key: str | None = LLMKey,
+                     wait: bool = Query(default=False, description="true: la llamada espera a que el análisis termine y devuelve "
+                                                                   "el estado con el resultado (200). Si pasa `wait_timeout` sin terminar, "
+                                                                   "responde 202 con el estado actual y se consulta con GET."),
+                     wait_timeout: int = Query(default=MAX_WAIT_S, ge=1, le=MAX_WAIT_S, description="Segundos máximos de espera con wait=true."),
+                     include_raw: bool = Query(default=False, description="Solo con wait=true: incluir raw_infra_data (varios MB).")) -> Any:
         created = await _create(request, owner, req, x_llm_api_key, domain)
-        response.headers["Location"] = f"/api/v1/{domain}/audits/{created.job_id}"
-        return created
+        location = f"/api/v1/{domain}/audits/{created.job_id}"
+        if not wait:
+            response.headers["Location"] = location
+            return created
+        job = await request.app.state.jobs.wait(created.job_id, owner, wait_timeout, domain)
+        return JSONResponse(_status_payload(job, domain, include_raw), headers={"Location": location},
+                            status_code=200 if job.status in FINISHED else 202)
 
     @router.get("/audits/{job_id}", response_model=DomainJobStatus, name=f"get_{domain}",
                 summary="Estado, eventos y resultado")
     async def get(job_id: str, request: Request, owner: str = Depends(authenticate),
-                  include_raw: bool = Query(default=True, description="false omite raw_infra_data (varios MB)")) -> Any:
-        job = request.app.state.jobs.get(job_id, owner, domain)
-        result = job.result if job.status == "completed" else None
-        if result is not None and not include_raw:
-            result = {**result, "raw_infra_data": None}
-        return {"job_id": job.id, "domain": domain, "status": job.status, "elapsed_s": job.elapsed_s,
-                "events": job.events, "error": job.error, "result": result}
+                  include_raw: bool = Query(default=True, description="false omite raw_infra_data (varios MB)"),
+                  wait: int = Query(default=0, ge=0, le=MAX_WAIT_S,
+                                    description="Segundos que la llamada espera a que el trabajo termine antes de responder (0 = no espera).")) -> Any:
+        job = await request.app.state.jobs.wait(job_id, owner, wait, domain)
+        return _status_payload(job, domain, include_raw)
 
     @router.delete("/audits/{job_id}", response_model=JobCancelled, name=f"cancel_{domain}",
                    summary="Cancelar un trabajo en curso, o borrar el registro de uno terminado")

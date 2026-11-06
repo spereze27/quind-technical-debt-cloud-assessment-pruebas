@@ -188,3 +188,36 @@ def test_gemini_uses_v1beta_for_system_messages() -> None:
         pytest.skip("versión antigua de langchain-google-genai")
     llm = LLMFactory._build_gemini("fake-key", "gemini-2.5-flash", 0.0)
     assert llm.api_version == "v1beta"
+
+
+def test_post_wait_returns_result_in_single_call() -> None:
+    with TestClient(create_app(Settings())) as c:
+        r = c.post("/api/v1/infrastructure/audits?wait=true", json=BODY, headers=LLM)
+        assert r.status_code == 200 and r.headers["location"].startswith("/api/v1/infrastructure/audits/")
+        j = r.json()
+        assert j["status"] == "completed" and j["domain"] == "infrastructure" and j["result"]["report"]
+        assert j["result"]["raw_infra_data"] is None                          # include_raw=false por defecto con wait
+        assert c.get(f"/api/v1/infrastructure/audits/{j['job_id']}").json()["status"] == "completed"
+
+
+def test_post_wait_timeout_returns_202_and_get_long_polls(monkeypatch: pytest.MonkeyPatch) -> None:
+    import asyncio
+    from backend.api import jobs as jobs_mod
+
+    async def slow(req, state, config):
+        await asyncio.sleep(1.5)
+        yield {"event": "completed", "result": {"domain": "architecture", "report": "ok"}}
+    monkeypatch.setattr(jobs_mod, "graph_events", slow)
+    with TestClient(create_app(Settings())) as c:
+        r = c.post("/api/v1/architecture/audits?wait=true&wait_timeout=1", json=BODY, headers=LLM)
+        assert r.status_code == 202 and r.json()["status"] in ("queued", "running") and r.json()["result"] is None
+        jid = r.json()["job_id"]
+        g = c.get(f"/api/v1/architecture/audits/{jid}?wait=10")                 # espera hasta que termine
+        assert g.json()["status"] == "completed" and g.json()["result"]["report"] == "ok"
+        assert c.post("/api/v1/architecture/audits?wait=true&wait_timeout=0", json=BODY, headers=LLM).status_code == 422
+
+
+def test_wait_does_not_leak_other_owner_or_domain() -> None:
+    with TestClient(create_app(Settings())) as c:
+        jid = c.post("/api/v1/infrastructure/audits", json=BODY, headers=LLM).json()["job_id"]
+        assert c.get(f"/api/v1/architecture/audits/{jid}?wait=1").status_code == 404

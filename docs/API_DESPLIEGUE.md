@@ -90,3 +90,12 @@ Cada prefijo ofrece `POST /audits` (202), `GET /audits/{id}`, `DELETE /audits/{i
 Campos por dominio: `infrastructure` = provider, scope, target_id, llm_provider, llm_model, cloud_credentials, billing_export_table. `architecture` = los mismos sin `billing_export_table`. `data-governance` = los de infraestructura + history_days, sample_lake, read_dags, max_projects, flow_catalog, data_dictionary_b64, data_dictionary_name, profile_project, profile_datasets, profile_max_gb. Un campo que no pertenece al dominio devuelve 422.
 
 Despliegue en Cloud Run: `docs/DEPLOY_CLOUD_RUN.md`. Pruebas: `api_tests/`.
+
+### Esperar el resultado en una sola llamada (v1.7)
+
+| Llamada | Efecto |
+|---|---|
+| `POST /api/v1/{dominio}/audits?wait=true&wait_timeout=3300` | Espera hasta `wait_timeout` s. `200` con el estado y el `result` si terminó; `202` con el estado actual si no (el trabajo sigue). `include_raw=false` por defecto aquí. |
+| `GET /api/v1/{dominio}/audits/{id}?wait=600` | Espera hasta 600 s a que el trabajo termine antes de responder (long-poll). |
+
+Si el cliente se desconecta durante la espera, el análisis **no se cancela**. Máximo 3300 s, por debajo del límite de 3600 s de Cloud Run.

@@ -56,7 +56,7 @@ python api_tests/smoke_test.py --url $URL --api-key $API_KEY --llm-key $LLM_KEY 
    --llm-provider anthropic --project $PROJECT --run architecture infrastructure data-governance
 ```
 
-Manual con curl (cambie el dominio por `infrastructure`, `data-governance` o `architecture`): `./api_tests/curl_examples.sh architecture`.
+Para el equipo que probará la API: `docs/MENSAJE_EQUIPO.md` (cuenta de solo lectura, sa.json y curls). Manual con curl (cambie el dominio por `infrastructure`, `data-governance` o `architecture`): `./api_tests/curl_examples.sh architecture`.
 Con Postman: importe `api_tests/postman_collection.json`, complete las variables `base_url`, `api_key`, `llm_key`, `gcp_project` y ejecute las carpetas en orden (Crear → Estado).
 
 Qué debe ver: `POST …/audits` → 202 con `job_id`; `GET …/audits/{id}` pasa de `queued/running` a `completed`; `result.report` trae el informe en Markdown; en `infrastructure` y `data-governance`, `result.findings` y `result.kpis`; en `architecture`, `result.architecture.risks`.

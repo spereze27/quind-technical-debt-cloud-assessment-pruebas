@@ -173,6 +173,15 @@ class JobManager:
             raise ApiError(404, "Auditoría no encontrada, vencida o el servicio se reinició.", "not_found")
         return job
 
+    async def wait(self, job_id: str, owner: str, timeout: float, domain: str | None = None) -> Job:
+        """Espera (sin cancelar el trabajo) hasta `timeout` s a que termine; devuelve el trabajo en su estado actual."""
+        job = self.get(job_id, owner, domain)
+        task = self._tasks.get(job_id)
+        if task is not None and not task.done() and timeout > 0:
+            await asyncio.wait({task}, timeout=timeout)          # al vencer NO cancela la tarea
+            job = self.get(job_id, owner, domain)
+        return job
+
     def cancel(self, job_id: str, owner: str, domain: str | None = None) -> Job:
         job = self.get(job_id, owner, domain)
         task = self._tasks.get(job_id)
