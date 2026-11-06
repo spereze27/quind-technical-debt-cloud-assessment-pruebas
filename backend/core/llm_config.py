@@ -61,7 +61,12 @@ class LLMFactory:
     def _build_gemini(api_key: str, model: str, temperature: float) -> BaseChatModel:
         from langchain_google_genai import ChatGoogleGenerativeAI
 
-        return ChatGoogleGenerativeAI(google_api_key=api_key, model=model, temperature=temperature)
+        kwargs: dict = {}
+        # langchain-google-genai >= 4 usa por defecto la API 'v1', que rechaza los mensajes de sistema
+        # ("Developer instruction is not enabled for api version v1"): se fuerza 'v1beta'.
+        if "api_version" in ChatGoogleGenerativeAI.model_fields:
+            kwargs["api_version"] = "v1beta"
+        return ChatGoogleGenerativeAI(google_api_key=api_key, model=model, temperature=temperature, **kwargs)
 
 
 def get_llm_from_config(config: RunnableConfig) -> BaseChatModel:

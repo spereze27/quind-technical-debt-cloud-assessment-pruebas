@@ -179,3 +179,12 @@ def test_adc_used_when_enabled_and_no_json(monkeypatch: pytest.MonkeyPatch) -> N
         discovery.load_credentials(None)
     monkeypatch.setenv("ADC_ENABLED", "1")
     assert discovery.load_credentials(None) is sentinel
+
+
+def test_gemini_uses_v1beta_for_system_messages() -> None:
+    from langchain_google_genai import ChatGoogleGenerativeAI
+    from backend.core.llm_config import LLMFactory
+    if "api_version" not in ChatGoogleGenerativeAI.model_fields:
+        pytest.skip("versión antigua de langchain-google-genai")
+    llm = LLMFactory._build_gemini("fake-key", "gemini-2.5-flash", 0.0)
+    assert llm.api_version == "v1beta"
